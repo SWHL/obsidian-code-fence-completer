@@ -112,12 +112,37 @@ test("inserts a closing fence before following document content", () => {
 	);
 });
 
-test("reuses an existing blank line when adding a closing fence", () => {
-	const lines = ["```typescript", ""];
+test("reuses an existing blank line even when later fences exist", () => {
+	const lines = ["```typescript", "", "Text", "```python", "value", "```"];
 	deepEqual(
-		planFenceCompletion(0, lines[0], 1, (line) => lines[line], "```", ""),
+		planFenceCompletion(0, lines[0], 5, (line) => lines[line], "```", ""),
 		{
 			insertion: { line: 1, ch: 0, text: "\n```" },
+			cursor: { line: 1, ch: 0 },
+		},
+	);
+});
+
+test("keeps an existing empty fenced block unchanged", () => {
+	const lines = ["```typescript", "", "```"];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 2, (line) => lines[line], "```", ""),
+		{ insertion: null, cursor: { line: 1, ch: 0 } },
+	);
+});
+
+test("does not treat a later code block's close as the current close", () => {
+	const lines = [
+		"```typescript",
+		"Following paragraph",
+		"```python",
+		"value",
+		"```",
+	];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 4, (line) => lines[line], "```", ""),
+		{
+			insertion: { line: 0, ch: 13, text: "\n\n```" },
 			cursor: { line: 1, ch: 0 },
 		},
 	);

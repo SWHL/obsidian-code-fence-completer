@@ -152,15 +152,47 @@ export function planFenceCompletion(
 ): FenceCompletionPlan {
 	const nextLine = openingLine + 1;
 	let closingLine: number | null = null;
-
-	for (let line = nextLine; line <= lastLine; line += 1) {
-		const match = getLine(line).match(/^( {0,3})(`{3,}|~{3,})[ \t]*$/);
-		if (
+	const isMatchingClosingFence = (line: string): boolean => {
+		const match = line.match(/^( {0,3})(`{3,}|~{3,})[ \t]*$/);
+		return Boolean(
 			match &&
 			match[2][0] === fence[0] &&
-			match[2].length >= fence.length
+			match[2].length >= fence.length,
+		);
+	};
+
+	if (nextLine <= lastLine && getLine(nextLine).length === 0) {
+		const followingLine = nextLine + 1;
+		if (
+			followingLine <= lastLine &&
+			isMatchingClosingFence(getLine(followingLine))
 		) {
+			return { insertion: null, cursor: { line: nextLine, ch: 0 } };
+		}
+
+		return {
+			insertion: {
+				line: nextLine,
+				ch: 0,
+				text: `\n${indent}${fence}`,
+			},
+			cursor: { line: nextLine, ch: 0 },
+		};
+	}
+
+	for (let line = nextLine; line <= lastLine; line += 1) {
+		const lineText = getLine(line);
+		if (isMatchingClosingFence(lineText)) {
 			closingLine = line;
+			break;
+		}
+
+		const possibleOpeningFence = lineText.match(OPENING_FENCE);
+		if (
+			possibleOpeningFence &&
+			possibleOpeningFence[2][0] === fence[0] &&
+			possibleOpeningFence[3].trim().length > 0
+		) {
 			break;
 		}
 	}
@@ -174,17 +206,6 @@ export function planFenceCompletion(
 
 	if (closingLine !== null) {
 		return { insertion: null, cursor: { line: nextLine, ch: 0 } };
-	}
-
-	if (nextLine <= lastLine && getLine(nextLine).length === 0) {
-		return {
-			insertion: {
-				line: nextLine,
-				ch: 0,
-				text: `\n${indent}${fence}`,
-			},
-			cursor: { line: nextLine, ch: 0 },
-		};
 	}
 
 	return {
