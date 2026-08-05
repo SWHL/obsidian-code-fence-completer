@@ -1,15 +1,50 @@
-# Obsidian Code Language Completer
+# Code Fence Completer
 
-a simple plugin that offers a quality-of-life improvement to inserting code blocks in obsidian
+Code Fence Completer provides reliable language suggestions when writing Markdown code fences in Obsidian.
 
-![code-language-completer](https://github.com/user-attachments/assets/81089651-ca9f-4d69-a709-5fb1fa4729df)
+## Features
 
-features:
+- Suggests common language identifiers after opening backtick or tilde fences.
+- Prioritizes the most recently selected language.
+- Supports custom identifiers separated by commas or new lines.
+- Supports identifiers such as `c++`, `c#`, `foo-bar`, and `foo.bar`.
+- Avoids opening suggestions on closing fences.
+- Inserts an empty code block, or wraps the current selection, with the **Insert code block** command.
+- Works on desktop and mobile.
 
-1. autosuggestions and completions for a variety of programming languages
-2. ability to add more languages if need be
-3. suggests based on the most recently used language (helpful when taking notes on a specific language)
-4. configurable hotkey that places cursor inside autosuggest modal, on language insertion, cursor placed inside the code block
+## Usage
 
+Type an opening fence and start entering a language:
 
+````markdown
+```type
+````
 
+Choose a suggestion with the keyboard or pointer. The cursor moves into the code block. If there is no matching closing fence, the plugin adds one before the following document content.
+
+You can also assign a hotkey to **Code Fence Completer: Insert code block** in Obsidian's Hotkeys settings.
+
+## Manual installation
+
+1. Download `main.js` and `manifest.json` from the latest release.
+2. Put them in `<vault>/.obsidian/plugins/code-fence-completer/`.
+3. Reload Obsidian and enable **Code Fence Completer** in Community plugins.
+
+## Development
+
+```bash
+npm install
+npm run check
+```
+
+Run `npm run dev` to rebuild while editing.
+
+## Release
+
+1. Run `npm version patch`, `npm version minor`, or `npm version major`.
+2. Push the commit and version tag with `git push --follow-tags`.
+3. The release workflow builds the plugin and attaches `main.js` and `manifest.json` to a GitHub release.
+
+## Acknowledgements
+
+This plugin is based on [stanley-910/obsidian-code-language-completer](https://github.com/stanley-910/obsidian-code-language-completer), originally released under the MIT License. This fork includes substantial reliability, usability, testing, and release-tooling updates.

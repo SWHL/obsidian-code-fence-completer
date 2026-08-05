@@ -1,0 +1,124 @@
+import { deepEqual, equal } from "node:assert/strict";
+import test from "node:test";
+
+import {
+	buildCodeBlockInsertion,
+	buildLanguageList,
+	filterLanguages,
+	findLanguageTrigger,
+	planFenceCompletion,
+} from "./language-utils";
+
+function triggerFor(lines: string[], line = lines.length - 1) {
+	return findLanguageTrigger(line, lines[line].length, (index) => lines[index]);
+}
+
+test("finds backtick and tilde language triggers", () => {
+	deepEqual(triggerFor(["```type-script"]), {
+		query: "type-script",
+		startCh: 3,
+		endCh: 14,
+		fence: "```",
+		indent: "",
+	});
+	equal(triggerFor(["  ~~~~c++"])?.query, "c++");
+	equal(triggerFor(["```c#"])?.query, "c#");
+});
+
+test("replaces the complete language identifier when the cursor is in it", () => {
+	deepEqual(findLanguageTrigger(0, 7, () => "```javascript"), {
+		query: "java",
+		startCh: 3,
+		endCh: 13,
+		fence: "```",
+		indent: "",
+	});
+});
+
+test("rejects invalid or non-fence lines", () => {
+	equal(triggerFor(["text ```js"]), null);
+	equal(triggerFor(["    ```js"]), null);
+	equal(triggerFor(["```java script"]), null);
+	equal(triggerFor(["``js"]), null);
+});
+
+test("does not trigger on a closing fence", () => {
+	equal(triggerFor(["```js", "const value = 1;", "```"]), null);
+	equal(triggerFor(["~~~js", "value", "~~~~"]), null);
+});
+
+test("triggers again after a fenced block has closed", () => {
+	equal(triggerFor(["```js", "value", "```", "```py"])?.query, "py");
+});
+
+test("builds a case-insensitive, comma-or-line-separated language list", () => {
+	const languages = buildLanguageList("Vue\nC++, javascript, vue");
+	deepEqual(languages.slice(0, 3), ["Vue", "C++", "javascript"]);
+	equal(languages.filter((language) => language === "javascript").length, 1);
+});
+
+test("filters case-insensitively and prioritizes the last used language", () => {
+	deepEqual(
+		filterLanguages(["Java", "JavaScript", "Julia"], "JA", "javascript"),
+		["JavaScript", "Java"],
+	);
+});
+
+test("builds standalone code blocks on empty and non-empty lines", () => {
+	deepEqual(buildCodeBlockInsertion("", "", ""), {
+		text: "```\n\n```",
+		lineOffset: 0,
+		cursorCh: 3,
+	});
+	deepEqual(buildCodeBlockInsertion("before", "after", "selected"), {
+		text: "\n```\nselected\n```\n",
+		lineOffset: 1,
+		cursorCh: 3,
+	});
+	deepEqual(buildCodeBlockInsertion("  ", "", "value"), {
+		text: "```\nvalue\n  ```",
+		lineOffset: 0,
+		cursorCh: 5,
+	});
+});
+
+test("uses an existing closing fence and creates a content line", () => {
+	const lines = ["```typescript", "```"];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 1, (line) => lines[line], "```", ""),
+		{
+			insertion: { line: 1, ch: 0, text: "\n" },
+			cursor: { line: 1, ch: 0 },
+		},
+	);
+});
+
+test("does not duplicate a later closing fence", () => {
+	const lines = ["```typescript", "const value = 1;", "```"];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 2, (line) => lines[line], "```", ""),
+		{ insertion: null, cursor: { line: 1, ch: 0 } },
+	);
+});
+
+test("inserts a closing fence before following document content", () => {
+	const lines = ["  ~~~~typescript", "Following paragraph"];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 1, (line) => lines[line], "~~~~", "  "),
+		{
+			insertion: { line: 0, ch: 16, text: "\n\n  ~~~~" },
+			cursor: { line: 1, ch: 0 },
+		},
+	);
+});
+
+test("reuses an existing blank line when adding a closing fence", () => {
+	const lines = ["```typescript", ""];
+	deepEqual(
+		planFenceCompletion(0, lines[0], 1, (line) => lines[line], "```", ""),
+		{
+			insertion: { line: 1, ch: 0, text: "\n```" },
+			cursor: { line: 1, ch: 0 },
+		},
+	);
+});

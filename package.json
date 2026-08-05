@@ -1,16 +1,27 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-code-fence-completer",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Reliable language suggestions for Markdown code fences in Obsidian",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+		"test": "node --import tsx --test language-utils.test.ts",
+		"check": "npm run test && npm run build",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"obsidian",
+		"markdown",
+		"code-fence",
+		"autocomplete"
+	],
+	"author": "SWHL",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/SWHL/obsidian-code-fence-completer.git"
+	},
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
@@ -19,6 +30,7 @@
 		"esbuild": "0.17.3",
 		"obsidian": "latest",
 		"tslib": "2.4.0",
+		"tsx": "^4.20.3",
 		"typescript": "4.7.4"
 	}
 }

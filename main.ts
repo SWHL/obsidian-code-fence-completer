@@ -12,209 +12,191 @@ import {
 	TFile,
 } from "obsidian";
 
-interface CodeBlockInserterSettings {
+import {
+	buildCodeBlockInsertion,
+	buildLanguageList,
+	filterLanguages,
+	findLanguageTrigger,
+	planFenceCompletion,
+} from "./language-utils";
+
+interface CodeFenceCompleterSettings {
 	lastUsedLanguage: string;
 	additionalLanguages: string;
 }
 
-const DEFAULT_SETTINGS: CodeBlockInserterSettings = {
+const DEFAULT_SETTINGS: CodeFenceCompleterSettings = {
 	lastUsedLanguage: "",
 	additionalLanguages: "",
 };
 
-export default class CodeBlockInserterPlugin extends Plugin {
+export default class CodeFenceCompleterPlugin extends Plugin {
 	suggester: LanguageSuggester;
-	settings: CodeBlockInserterSettings;
+	settings: CodeFenceCompleterSettings;
 
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
-
-		//Init and register LanguageSuggester
 
 		this.suggester = new LanguageSuggester(this);
 		this.registerEditorSuggest(this.suggester);
 
 		this.addCommand({
-			id: "insert-code-block-custom",
+			id: "insert-code-block",
 			name: "Insert code block",
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				const cursor = editor.getCursor();
-				editor.replaceRange("```\n\n```", cursor);
+			editorCallback: (editor: Editor, _view: MarkdownView) => {
+				const from = editor.getCursor("from");
+				const to = editor.getCursor("to");
+				const selection = editor.getSelection();
+				const insertion = buildCodeBlockInsertion(
+					editor.getLine(from.line).slice(0, from.ch),
+					editor.getLine(to.line).slice(to.ch),
+					selection,
+				);
+				editor.replaceSelection(insertion.text);
 				editor.setCursor({
-					line: cursor.line,
-					ch: cursor.ch + 3,
+					line: from.line + insertion.lineOffset,
+					ch: insertion.cursorCh,
 				});
 			},
 		});
-		this.addSettingTab(new CodeBlockInserterSettingTab(this.app, this));
+
+		this.addSettingTab(new CodeFenceCompleterSettingTab(this.app, this));
 	}
-	async loadSettings() {
+
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
 			await this.loadData(),
 		);
 	}
-	async saveSettings() {
+
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 }
 
 class LanguageSuggester extends EditorSuggest<string> {
-	plugin: CodeBlockInserterPlugin;
-	languages: string[];
+	private languages: string[] = [];
 
-	constructor(plugin: CodeBlockInserterPlugin) {
+	constructor(private readonly plugin: CodeFenceCompleterPlugin) {
 		super(plugin.app);
-		this.plugin = plugin;
-		this.languages = [];
 		this.updateLanguages();
 	}
-	updateLanguages() {
-		const baseLanguages = [
-			"javascript",
-			"python",
-			"java",
-			"c",
-			"cpp",
-			"csharp",
-			"ruby",
-			"go",
-			"rust",
-			"swift",
-			"kotlin",
-			"php",
-			"html",
-			"css",
-			"sql",
-			"bash",
-			"powershell",
-			"markdown",
-			"json",
-			"yaml",
-			"xml",
-			"typescript",
-			"ocaml",
-		];
 
-		const additionalLanguages = this.plugin.settings.additionalLanguages
-			.split(",")
-			.map((lang) => lang.trim())
-			.filter((lang) => lang.length > 0);
-
-		this.languages = Array.from(
-			new Set([...additionalLanguages, ...baseLanguages]),
+	updateLanguages(): void {
+		this.languages = buildLanguageList(
+			this.plugin.settings.additionalLanguages,
 		);
 	}
 
 	onTrigger(
 		cursor: EditorPosition,
 		editor: Editor,
-		file: TFile,
+		_file: TFile,
 	): EditorSuggestTriggerInfo | null {
-		const line = editor.getLine(cursor.line);
-		const match = line.match(/```(\w*)$/);
-
-		if (match) {
-			return {
-				start: { line: cursor.line, ch: cursor.ch - match[1].length },
-				end: cursor,
-				query: match[1],
-			};
-		}
-		return null;
-	}
-
-	getSuggestions(
-		context: EditorSuggestContext,
-	): string[] | Promise<string[]> {
-		const query = context.query.toLowerCase();
-		let suggestions = this.languages.filter((lang) =>
-			lang.startsWith(query),
+		const trigger = findLanguageTrigger(
+			cursor.line,
+			cursor.ch,
+			(line) => editor.getLine(line),
 		);
-		// Prioritize last used language
-
-		const lastUsedLanguage = this.plugin.settings.lastUsedLanguage;
-		if (
-			lastUsedLanguage &&
-			lastUsedLanguage.startsWith(query) &&
-			suggestions.includes(lastUsedLanguage)
-		) {
-			// move to top
-			suggestions = [
-				lastUsedLanguage,
-				...suggestions.filter((lang) => lang !== lastUsedLanguage),
-			];
+		if (!trigger) {
+			return null;
 		}
 
-		return suggestions;
-	}
-
-	renderSuggestion(lang: string, el: HTMLElement): void {
-		el.setText(lang);
-	}
-
-	selectSuggestion(lang: string, evt: MouseEvent | KeyboardEvent): void {
-		const { editor, start, end } = this.context!;
-		editor.replaceRange(lang, start, end);
-
-		// update last used language
-		this.plugin.settings.lastUsedLanguage = lang;
-		this.plugin.saveSettings();
-
-		// editor.setCursor(end.line, start.ch + lang.length);
-		const newCursorPos = {
-			line: end.line + 1,
-			ch: 0,
+		return {
+			start: { line: cursor.line, ch: trigger.startCh },
+			end: { line: cursor.line, ch: trigger.endCh },
+			query: trigger.query,
 		};
-		editor.setCursor(newCursorPos);
+	}
+
+	getSuggestions(context: EditorSuggestContext): string[] {
+		return filterLanguages(
+			this.languages,
+			context.query,
+			this.plugin.settings.lastUsedLanguage,
+		);
+	}
+
+	renderSuggestion(language: string, element: HTMLElement): void {
+		element.setText(language);
+	}
+
+	selectSuggestion(
+		language: string,
+		_event: MouseEvent | KeyboardEvent,
+	): void {
+		if (!this.context) {
+			return;
+		}
+
+		const { editor, start, end } = this.context;
+		editor.replaceRange(language, start, end);
+		this.plugin.settings.lastUsedLanguage = language;
+		void this.plugin.saveSettings();
+
+		const openingLine = editor.getLine(end.line);
+		const fenceMatch = openingLine.match(/^( {0,3})(`{3,}|~{3,})/);
+		const indent = fenceMatch?.[1] ?? "";
+		const fence = fenceMatch?.[2] ?? "```";
+		const plan = planFenceCompletion(
+			end.line,
+			openingLine,
+			editor.lastLine(),
+			(line) => editor.getLine(line),
+			fence,
+			indent,
+		);
+		if (plan.insertion) {
+			editor.replaceRange(plan.insertion.text, plan.insertion);
+		}
+		editor.setCursor(plan.cursor);
 	}
 }
 
-class CodeBlockInserterSettingTab extends PluginSettingTab {
-	plugin: CodeBlockInserterPlugin;
-
-	constructor(app: App, plugin: CodeBlockInserterPlugin) {
+class CodeFenceCompleterSettingTab extends PluginSettingTab {
+	constructor(
+		app: App,
+		private readonly plugin: CodeFenceCompleterPlugin,
+	) {
 		super(app, plugin);
-		this.plugin = plugin;
 	}
 
 	display(): void {
 		const { containerEl } = this;
-
 		containerEl.empty();
 
 		new Setting(containerEl)
 			.setName("Last used language")
-			.setDesc("The last programming language you used in a code block.")
+			.setDesc("The language shown first in matching suggestions.")
 			.addText((text) =>
 				text
 					.setPlaceholder("No language selected yet")
 					.setValue(this.plugin.settings.lastUsedLanguage)
 					.onChange(async (value) => {
-						this.plugin.settings.lastUsedLanguage = value;
+						this.plugin.settings.lastUsedLanguage = value.trim();
 						await this.plugin.saveSettings();
 					}),
 			);
+
 		new Setting(containerEl)
 			.setName("Additional languages")
-			.setDesc("Add more languages (comma-separated).")
+			.setDesc("Add language identifiers separated by commas or new lines.")
 			.addTextArea((text) =>
 				text
-					.setPlaceholder("e.g., ruby, lang1, lang2")
+					.setPlaceholder("vue, c++, typst")
 					.setValue(this.plugin.settings.additionalLanguages)
 					.onChange(async (value) => {
 						this.plugin.settings.additionalLanguages = value;
-						await this.plugin.saveSettings();
-
-						// Update the languages in the suggester
 						this.plugin.suggester.updateLanguages();
+						await this.plugin.saveSettings();
 					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Reset last used language")
-			.setDesc("Clear the last used language.")
+			.setDesc("Clear the language suggestion history.")
 			.addButton((button) =>
 				button.setButtonText("Reset").onClick(async () => {
 					this.plugin.settings.lastUsedLanguage = "";
