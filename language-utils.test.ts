@@ -3,11 +3,15 @@ import test from "node:test";
 
 import {
 	buildCodeBlockInsertion,
+	buildLanguageAliases,
 	buildLanguageCompletionChanges,
 	buildLanguageList,
-	filterLanguages,
+	findCodeFenceAtLine,
+	findConflictingPluginIds,
 	findLanguageTrigger,
 	planFenceCompletion,
+	rankLanguageSuggestions,
+	updateRecentLanguages,
 } from "./language-utils";
 
 function triggerFor(lines: string[], line = lines.length - 1) {
@@ -36,6 +40,16 @@ test("replaces the complete language identifier when the cursor is in it", () =>
 	});
 });
 
+test("preserves info string attributes after the language identifier", () => {
+	deepEqual(findLanguageTrigger(0, 5, () => "```py title=demo linenums"), {
+		query: "py",
+		startCh: 3,
+		endCh: 5,
+		fence: "```",
+		indent: "",
+	});
+});
+
 test("rejects invalid or non-fence lines", () => {
 	equal(triggerFor(["text ```js"]), null);
 	equal(triggerFor(["    ```js"]), null);
@@ -58,10 +72,90 @@ test("builds a case-insensitive, comma-or-line-separated language list", () => {
 	equal(languages.filter((language) => language === "javascript").length, 1);
 });
 
-test("filters case-insensitively and prioritizes the last used language", () => {
+test("builds aliases with custom entries overriding defaults", () => {
+	const aliases = buildLanguageAliases("py=python3\nrb = ruby, invalid");
+	equal(aliases.get("py"), "python3");
+	equal(aliases.get("rb"), "ruby");
+	equal(aliases.get("js"), "javascript");
+});
+
+test("ranks exact aliases, prefixes, fuzzy matches, and recent languages", () => {
+	const aliases = buildLanguageAliases("");
 	deepEqual(
-		filterLanguages(["Java", "JavaScript", "Julia"], "JA", "javascript"),
-		["JavaScript", "Java"],
+		rankLanguageSuggestions(
+			["java", "javascript", "python", "typescript"],
+			aliases,
+			"py",
+			[],
+		).slice(0, 1),
+		[{ language: "python", matchedAlias: "py" }],
+	);
+	deepEqual(
+		rankLanguageSuggestions(
+			["java", "javascript", "python", "typescript"],
+			aliases,
+			"jvs",
+			[],
+		).slice(0, 1),
+		[{ language: "javascript", matchedAlias: undefined }],
+	);
+	deepEqual(
+		rankLanguageSuggestions(
+			["java", "javascript", "python"],
+			aliases,
+			"",
+			["python", "javascript"],
+		).map((suggestion) => suggestion.language),
+		["python", "javascript", "java", "csharp", "markdown", "bash", "typescript", "yaml"],
+	);
+});
+
+test("updates recent languages without case-insensitive duplicates", () => {
+	deepEqual(updateRecentLanguages(["Python", "javascript", "bash"], "python", 3), [
+		"python",
+		"javascript",
+		"bash",
+	]);
+});
+
+test("finds the current code fence and its language range", () => {
+	const lines = [
+		"Text",
+		"  ```python title=demo linenums",
+		"value",
+		"  ```",
+		"After",
+	];
+	deepEqual(findCodeFenceAtLine(2, 4, (line) => lines[line]), {
+		openingLine: 1,
+		closingLine: 3,
+		fence: "```",
+		indent: "  ",
+		infoStartCh: 5,
+		languageStartCh: 5,
+		languageEndCh: 11,
+		language: "python",
+	});
+});
+
+test("finds unclosed and language-less code fences", () => {
+	const lines = ["Text", "~~~~", "value"];
+	deepEqual(findCodeFenceAtLine(2, 2, (line) => lines[line]), {
+		openingLine: 1,
+		closingLine: null,
+		fence: "~~~~",
+		indent: "",
+		infoStartCh: 4,
+		languageStartCh: 4,
+		languageEndCh: 4,
+		language: "",
+	});
+});
+
+test("detects only enabled conflicting plugins", () => {
+	deepEqual(
+		findConflictingPluginIds(["codeblock-completer", "obsidian-linter"]),
+		["codeblock-completer"],
 	);
 });
 
@@ -203,6 +297,34 @@ test("keeps multi-line completion changes in one transaction", () => {
 				text: "python",
 			},
 			{ from: { line: 2, ch: 0 }, text: "\n```" },
+		],
+	);
+});
+
+test("preserves info string attributes while completing and closing", () => {
+	const lines = ["```py title=demo", "Following paragraph"];
+	const plan = planFenceCompletion(
+		0,
+		"```python title=demo",
+		1,
+		(line) => lines[line],
+		"```",
+		"",
+	);
+	deepEqual(
+		buildLanguageCompletionChanges(
+			"python",
+			{ line: 0, ch: 3 },
+			{ line: 0, ch: 5 },
+			plan,
+		),
+		[
+			{
+				from: { line: 0, ch: 3 },
+				to: { line: 0, ch: 5 },
+				text: "python",
+			},
+			{ from: { line: 0, ch: 16 }, text: "\n\n```" },
 		],
 	);
 });
