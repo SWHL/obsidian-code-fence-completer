@@ -14,6 +14,7 @@ import {
 
 import {
 	buildCodeBlockInsertion,
+	buildLanguageCompletionChanges,
 	buildLanguageList,
 	filterLanguages,
 	findLanguageTrigger,
@@ -132,11 +133,14 @@ class LanguageSuggester extends EditorSuggest<string> {
 		}
 
 		const { editor, start, end } = this.context;
-		editor.replaceRange(language, start, end);
 		this.plugin.settings.lastUsedLanguage = language;
 		void this.plugin.saveSettings();
 
-		const openingLine = editor.getLine(end.line);
+		const originalOpeningLine = editor.getLine(end.line);
+		const openingLine =
+			originalOpeningLine.slice(0, start.ch) +
+			language +
+			originalOpeningLine.slice(end.ch);
 		const fenceMatch = openingLine.match(/^( {0,3})(`{3,}|~{3,})/);
 		const indent = fenceMatch?.[1] ?? "";
 		const fence = fenceMatch?.[2] ?? "```";
@@ -148,10 +152,10 @@ class LanguageSuggester extends EditorSuggest<string> {
 			fence,
 			indent,
 		);
-		if (plan.insertion) {
-			editor.replaceRange(plan.insertion.text, plan.insertion);
-		}
-		editor.setCursor(plan.cursor);
+		editor.transaction({
+			changes: buildLanguageCompletionChanges(language, start, end, plan),
+			selection: { from: plan.cursor },
+		});
 	}
 }
 

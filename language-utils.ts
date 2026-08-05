@@ -17,6 +17,12 @@ export interface FenceCompletionPlan {
 	cursor: { line: number; ch: number };
 }
 
+export interface EditorTextChange {
+	from: { line: number; ch: number };
+	to?: { line: number; ch: number };
+	text: string;
+}
+
 export const DEFAULT_LANGUAGES = [
 	"bash",
 	"c",
@@ -216,6 +222,51 @@ export function planFenceCompletion(
 		},
 		cursor: { line: nextLine, ch: 0 },
 	};
+}
+
+export function buildLanguageCompletionChanges(
+	language: string,
+	start: { line: number; ch: number },
+	end: { line: number; ch: number },
+	plan: FenceCompletionPlan,
+): EditorTextChange[] {
+	const languageChange: EditorTextChange = {
+		from: start,
+		to: end,
+		text: language,
+	};
+	if (!plan.insertion) {
+		return [languageChange];
+	}
+
+	if (plan.insertion.line === end.line) {
+		const originalInsertionCh =
+			plan.insertion.ch - language.length + (end.ch - start.ch);
+		if (originalInsertionCh === end.ch) {
+			return [
+				{
+					...languageChange,
+					text: language + plan.insertion.text,
+				},
+			];
+		}
+
+		return [
+			languageChange,
+			{
+				from: { line: plan.insertion.line, ch: originalInsertionCh },
+				text: plan.insertion.text,
+			},
+		];
+	}
+
+	return [
+		languageChange,
+		{
+			from: { line: plan.insertion.line, ch: plan.insertion.ch },
+			text: plan.insertion.text,
+		},
+	];
 }
 
 export function buildLanguageList(additionalLanguages: string): string[] {

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
 	buildCodeBlockInsertion,
+	buildLanguageCompletionChanges,
 	buildLanguageList,
 	filterLanguages,
 	findLanguageTrigger,
@@ -145,5 +146,63 @@ test("does not treat a later code block's close as the current close", () => {
 			insertion: { line: 0, ch: 13, text: "\n\n```" },
 			cursor: { line: 1, ch: 0 },
 		},
+	);
+});
+
+test("applies the language and closing fence in one editor transaction", () => {
+	const lines = [
+		"Text before",
+		"```",
+		"Text after",
+		"```text",
+		"value",
+		"```",
+	];
+	const plan = planFenceCompletion(
+		1,
+		"```python",
+		5,
+		(line) => lines[line],
+		"```",
+		"",
+	);
+
+	deepEqual(
+		buildLanguageCompletionChanges(
+			"python",
+			{ line: 1, ch: 3 },
+			{ line: 1, ch: 3 },
+			plan,
+		),
+		[
+			{
+				from: { line: 1, ch: 3 },
+				to: { line: 1, ch: 3 },
+				text: "python\n\n```",
+			},
+		],
+	);
+});
+
+test("keeps multi-line completion changes in one transaction", () => {
+	const plan = {
+		insertion: { line: 2, ch: 0, text: "\n```" },
+		cursor: { line: 2, ch: 0 },
+	};
+	deepEqual(
+		buildLanguageCompletionChanges(
+			"python",
+			{ line: 1, ch: 3 },
+			{ line: 1, ch: 5 },
+			plan,
+		),
+		[
+			{
+				from: { line: 1, ch: 3 },
+				to: { line: 1, ch: 5 },
+				text: "python",
+			},
+			{ from: { line: 2, ch: 0 }, text: "\n```" },
+		],
 	);
 });
