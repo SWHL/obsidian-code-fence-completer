@@ -70,6 +70,23 @@ Run `npm run dev` to rebuild while editing.
 
 Directly pushed semantic-version tags such as `v1.2.3` are supported too: the release workflow synchronizes all version files in its build checkout. Use `npm version` when the synchronized files should also be committed to the repository.
 
+### Manually set an exact version
+
+Use the synchronization script to set an exact version without creating a commit or tag:
+
+```bash
+npm run sync-version -- 1.2.0
+```
+
+The command updates every project version location:
+
+- `package.json`: the top-level `version` field.
+- `package-lock.json`: both the top-level `version` field and `packages[""].version`.
+- `manifest.json`: the `version` field.
+- `versions.json`: a mapping from the new version to the current `minAppVersion`, for example `"1.2.0": "1.13.0"`.
+
+When editing the version by hand instead, update all of the same locations before committing or creating the tag.
+
 ## Acknowledgements
 
 This plugin is based on [stanley-910/obsidian-code-language-completer](https://github.com/stanley-910/obsidian-code-language-completer), originally released under the MIT License. This fork includes substantial reliability, usability, testing, and release-tooling updates.

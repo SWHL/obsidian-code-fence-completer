@@ -1,7 +1,7 @@
 {
 	"id": "code-fence-completer",
 	"name": "Code Fence Completer",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "1.13.0",
 	"description": "Suggests language identifiers and completes Markdown code fences reliably.",
 	"author": "SWHL",
