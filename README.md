@@ -64,9 +64,11 @@ Run `npm run dev` to rebuild while editing.
 
 ## Release
 
-1. Run `npm version patch`, `npm version minor`, or `npm version major`.
+1. Run `npm version patch`, `npm version minor`, or `npm version major`. This synchronizes `package.json`, `package-lock.json`, `manifest.json`, and `versions.json`, then creates the commit and tag.
 2. Push the commit and version tag with `git push --follow-tags`.
-3. The release workflow builds the plugin and attaches `main.js` and `manifest.json` to a GitHub release.
+3. The release workflow also derives the version from the tag, builds the plugin, and attaches `main.js` and the synchronized `manifest.json` to a GitHub release.
+
+Directly pushed semantic-version tags such as `v1.2.3` are supported too: the release workflow synchronizes all version files in its build checkout. Use `npm version` when the synchronized files should also be committed to the repository.
 
 ## Acknowledgements
 

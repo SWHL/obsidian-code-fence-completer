@@ -24,13 +24,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test and build
-        run: npm run check
-
-      - name: Verify tag matches manifest
+      - name: Synchronize version from tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: test "${RELEASE_TAG#v}" = "$(node -p "require('./manifest.json').version")"
+        run: npm run sync-version -- "$RELEASE_TAG"
+
+      - name: Test and build
+        run: npm run check
 
       - name: Create or update GitHub release
         env:

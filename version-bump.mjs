@@ -1,14 +1,61 @@
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const targetVersion = process.env.npm_package_version;
+const SEMVER_PATTERN =
+	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$/;
 
-// read minAppVersion from manifest.json and bump version to target version
-let manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
-const { minAppVersion } = manifest;
-manifest.version = targetVersion;
-writeFileSync("manifest.json", JSON.stringify(manifest, null, "\t"));
+export function normalizeVersion(rawVersion) {
+	const version = rawVersion?.trim().replace(/^v/, "");
+	if (!version || !SEMVER_PATTERN.test(version)) {
+		throw new Error(
+			`Invalid version "${rawVersion ?? ""}". Expected a semantic version such as 1.2.3 or v1.2.3.`,
+		);
+	}
 
-// update versions.json with target version and minAppVersion from manifest.json
-let versions = JSON.parse(readFileSync("versions.json", "utf8"));
-versions[targetVersion] = minAppVersion;
-writeFileSync("versions.json", JSON.stringify(versions, null, "\t"));
+	return version;
+}
+
+function readJson(rootDirectory, filename) {
+	return JSON.parse(readFileSync(resolve(rootDirectory, filename), "utf8"));
+}
+
+function writeJson(rootDirectory, filename, value) {
+	writeFileSync(
+		resolve(rootDirectory, filename),
+		`${JSON.stringify(value, null, "\t")}\n`,
+	);
+}
+
+export function syncVersions(rawVersion, rootDirectory = process.cwd()) {
+	const version = normalizeVersion(rawVersion);
+	const packageJson = readJson(rootDirectory, "package.json");
+	const packageLock = readJson(rootDirectory, "package-lock.json");
+	const manifest = readJson(rootDirectory, "manifest.json");
+	const versions = readJson(rootDirectory, "versions.json");
+
+	packageJson.version = version;
+	packageLock.version = version;
+	if (packageLock.packages?.[""]) {
+		packageLock.packages[""].version = version;
+	}
+	manifest.version = version;
+	versions[version] = manifest.minAppVersion;
+
+	writeJson(rootDirectory, "package.json", packageJson);
+	writeJson(rootDirectory, "package-lock.json", packageLock);
+	writeJson(rootDirectory, "manifest.json", manifest);
+	writeJson(rootDirectory, "versions.json", versions);
+
+	return version;
+}
+
+const isMainModule =
+	process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+	const version = syncVersions(
+		process.argv[2] ?? process.env.RELEASE_TAG ?? process.env.npm_package_version,
+	);
+	console.log(`Synchronized project version to ${version}.`);
+}
