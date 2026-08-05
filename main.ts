@@ -9,7 +9,6 @@ import {
 	Notice,
 	Plugin,
 	PluginSettingTab,
-	Setting,
 	SuggestModal,
 	TFile,
 } from "obsidian";
@@ -392,66 +391,5 @@ class CodeFenceCompleterSettingTab extends PluginSettingTab {
 		);
 
 		return definitions;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-		this.plugin.refreshConflicts();
-
-		if (this.plugin.conflictingPluginIds.length > 0) {
-			const names = this.plugin.conflictingPluginIds.map(
-				(pluginId) => CONFLICTING_PLUGIN_NAMES[pluginId] ?? pluginId,
-			);
-			new Setting(containerEl)
-				.setName("Plugin conflict detected")
-				.setDesc(
-					`Disable ${names.join(", ")} to prevent duplicate language suggestions.`,
-				);
-		}
-
-		new Setting(containerEl)
-			.setName("Additional languages")
-			.setDesc("Add language identifiers separated by commas or new lines.")
-			.addTextArea((text) =>
-				text
-					.setPlaceholder("vue, c++, typst")
-					.setValue(this.plugin.settings.additionalLanguages)
-					.onChange(async (value) => {
-						this.plugin.settings.additionalLanguages = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Language aliases")
-			.setDesc(
-				"Add alias=language mappings separated by commas or new lines. Built-ins include py, js, ts, sh, md, yml, and cs.",
-			)
-			.addTextArea((text) =>
-				text
-					.setPlaceholder("rb=ruby\nkt=kotlin")
-					.setValue(this.plugin.settings.languageAliases)
-					.onChange(async (value) => {
-						this.plugin.settings.languageAliases = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Recent languages")
-			.setDesc(
-				this.plugin.settings.recentLanguages.length > 0
-					? this.plugin.settings.recentLanguages.join(", ")
-					: "No recently used languages.",
-			)
-			.addButton((button) =>
-				button.setButtonText("Clear").onClick(async () => {
-					this.plugin.settings.lastUsedLanguage = "";
-					this.plugin.settings.recentLanguages = [];
-					await this.plugin.saveSettings();
-					this.display();
-				}),
-			);
 	}
 }
