@@ -1,5 +1,7 @@
 # Code Fence Completer
 
+[Add to Obsidian](obsidian://show-plugin?id=code-fence-completer)
+
 Code Fence Completer provides reliable language suggestions when writing Markdown code fences in Obsidian.
 
 ![](https://github.com/SWHL/obsidian-code-fence-completer/releases/download/v1.0.0/demo.gif)
