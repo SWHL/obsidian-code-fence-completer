@@ -2,6 +2,8 @@
 
 Code Fence Completer provides reliable language suggestions when writing Markdown code fences in Obsidian.
 
+![](https://github.com/SWHL/obsidian-code-fence-completer/releases/download/v1.0.0/demo.gif)
+
 ## Features
 
 - Suggests common language identifiers after opening backtick or tilde fences.
